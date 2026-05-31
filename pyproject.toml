@@ -1,0 +1,14 @@
+[project]
+name = "gis-convert"
+version = "0.1.0"
+description = "Agent Skill and CLI for GIS format conversion with GDAL/OGR, PROJ, and PDAL."
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["pygeoconv>=1.0.1,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
