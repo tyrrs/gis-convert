@@ -2,104 +2,139 @@
 
 [English](README.md)｜简体中文
 
-`gis-convert` 是一个开源 Agent Skill 和 Python CLI，用于在常见矢量、地理数据库、CAD 交换、点云和实用三维 GIS 工作流之间转换数据。它会检测本机 GDAL/OGR、PROJ、PDAL 和 Python 包能力，根据输出文件后缀映射 driver，并在私有格式或只读格式不可写时给出明确替代方案。
+在 WKT、GeoJSON、SHP、GDB、DXF、CSV、ESRIJSON、点云和实用三维格式之间转换 GIS 数据。
 
-## 一键安装
+重点覆盖可落地的开放 GIS 格式互转；遇到需要专有工具链的格式时，会给出明确替代路径。
 
-安装到某个 Agent：
+支持 Claude Code、Codex、Cursor、OpenCode、Qwen Code、Gemini CLI、GitHub Copilot、Continue 和 Windsurf。
+
+<details>
+<summary>More</summary>
+
+AiderDesk、Amp、Kimi Code CLI、Replit、Universal、Antigravity、Augment、IBM Bob、OpenClaw、Cline、Dexto、Warp、CodeArts Agent、CodeBuddy、Codemaker、Code Studio、Command Code、Cortex Code、Crush、Deep Agents、Devin for Terminal、Droid、Firebender、ForgeCode、Goose、Hermes Agent、Junie、iFlow CLI、Kilo Code、Kiro CLI、Kode、MCPJam、Mistral Vibe、Mux、OpenHands、Pi、Qoder、Rovo Dev、Roo Code、Tabnine CLI、Trae、Trae CN、Zencoder、Neovate、Pochi、AdaL
+
+</details>
+
+## 快速开始
+
+使用标准 Skills CLI 安装：
 
 ```bash
-git clone <repo-url>
+npx skills add tyrrs/gis-convert
+```
+
+这是轻量 skill 安装。它只安装 `SKILL.md` 包，不会安装 GDAL/OGR、PROJ、PDAL 或 Python 包依赖。
+
+## 完整安装（含依赖检测）
+
+如果需要依赖检测和可选依赖安装，请使用本仓库安装器。安装器默认会检测依赖；缺少较大的原生 GIS 依赖时，它会先询问再安装。
+
+不指定 Agent 名称时，安装器会交互式列出当前检测到的 Agent 供多选。在 `curl | bash` 这类非交互环境中，会自动回退为安装检测到的 Agent。
+
+macOS / Linux / WSL / Git Bash：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.sh | bash
+```
+
+macOS / Linux 手动安装：
+
+```bash
+git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.sh --install codex
-```
-
-安装到多个 Agent：
-
-```bash
-./scripts/install.sh --install codex,claude-code,qwen-code
-```
-
-同时安装 Agent 集成和 GIS 依赖：
-
-```bash
-./scripts/install.sh --install codex --with-deps
-```
-
-如果依赖已经装好，只是安装到另一个 Agent：
-
-```bash
-./scripts/install.sh --install claude-code --skip-deps-check
+./scripts/install.sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-./scripts/install.ps1 -Install codex
+irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.ps1 | iex
 ```
 
-卸载 Agent 集成，不删除 GIS 依赖：
+Windows 手动安装：
+
+```powershell
+git clone https://github.com/tyrrs/gis-convert.git
+cd gis-convert
+./scripts/install.ps1
+```
+
+常用选项：
 
 ```bash
-./scripts/install.sh --uninstall codex
+./scripts/install.sh --install claude-code,codex,qwen-code
+./scripts/install.sh --install all
+./scripts/install.sh --install detected
+./scripts/install.sh --install claude-code --with-deps
+./scripts/install.sh --install claude-code --skip-deps-check
+./scripts/install.sh --uninstall claude-code
 ```
-
-安装器只会把最小运行包复制到 Agent 目录：
-
-```text
-SKILL.md
-scripts/
-references/
-```
-
-## 依赖检查
-
-真实转换前，先检查当前环境：
-
-```bash
-python scripts/check_env.py
-```
-
-打印 GDAL/OGR、PROJ、PDAL 和 Python 包依赖的安装计划：
-
-```bash
-python scripts/install_deps.py
-```
-
-一键安装器默认也会检测依赖。缺少较大的原生 GIS 依赖时，它会先询问再安装。PDAL 是可选依赖，只影响点云转换；`pygeoconv` 只用于 ESRIJSON 输出。
 
 ## 格式流程
 
-`输入格式 -> gis-convert CLI -> 输出格式`
+<table>
+  <tr>
+    <td valign="top">
+      <strong>输入格式</strong>
+      <table>
+        <tr><td>WKT、WKB</td></tr>
+        <tr><td>GeoJSON、TopoJSON、ESRIJSON</td></tr>
+        <tr><td>SHP、MapInfo TAB/MIF、CSV WKT</td></tr>
+        <tr><td>GeoPackage、FlatGeobuf、GML、KML/KMZ、GPX、SQLite</td></tr>
+        <tr><td>FileGDB/OpenFileGDB、条件输入 MDB/Personal GDB</td></tr>
+        <tr><td>DXF、条件输入 DWG</td></tr>
+        <tr><td>勘测定界 TXT</td></tr>
+        <tr><td>LAS、LAZ、E57、PLY</td></tr>
+        <tr><td>CityGML、3D Tiles、I3S/SLPK、glTF/GLB、OBJ、DAE</td></tr>
+      </table>
+    </td>
+    <td align="center" valign="middle"><strong style="font-size: 2rem;">→</strong></td>
+    <td valign="top">
+      <strong>输出格式</strong>
+      <table>
+        <tr><td>WKT</td></tr>
+        <tr><td>GeoJSON、TopoJSON、ESRIJSON</td></tr>
+        <tr><td>SHP、MapInfo TAB/MIF、CSV WKT</td></tr>
+        <tr><td>GeoPackage、FlatGeobuf、GML、KML/KMZ、GPX、SQLite</td></tr>
+        <tr><td>OpenFileGDB/FileGDB</td></tr>
+        <tr><td>DXF</td></tr>
+        <tr><td>勘测定界 TXT</td></tr>
+        <tr><td>LAS、LAZ、E57、PLY</td></tr>
+        <tr><td>本机适配器支持的实用三维输出</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
-### 输入格式
+## 格式说明
 
-| 类型 | 输入格式 | 说明 |
-|---|---|---|
-| 文本几何 | WKT、WKB | WKT 对常见几何类型有内置轻量处理。 |
-| Web 矢量 | GeoJSON、TopoJSON、ESRIJSON | ESRIJSON 读取取决于本机 driver 或包能力。 |
-| 桌面矢量 | SHP、MapInfo TAB/MIF、CSV WKT | CSV 输入需要 WKT 空间列，默认列名为 `wkt`。 |
-| OGC/矢量 | GeoPackage、FlatGeobuf、GML、KML/KMZ、GPX、SQLite | 支持能力取决于本机 GDAL/OGR driver。 |
-| 地理数据库 | FileGDB/OpenFileGDB、MDB/Personal GDB | MDB/Personal GDB 是条件支持，在非 Windows/ODBC 环境中常见为只读或不可用。 |
-| CAD/BIM | DXF、DWG、IFC | DXF 是优先推荐的开放 CAD 路径；DWG/IFC 依赖额外本地工具链。 |
-| 勘测交换 | 勘测定界 TXT | 支持 `[属性描述]` 和 `[地块坐标]` 结构的国土交换格式。 |
-| 点云 | LAS、LAZ、E57、PLY | 需要 PDAL；LAZ 还取决于本机 PDAL 编译能力。 |
-| 实用三维 | CityGML、3D Tiles、I3S/SLPK、glTF/GLB、OBJ、DAE | 按可用 GDAL/OGR 或专用适配器处理。 |
+| 格式 | 方向 | 说明 | 描述 |
+|---|---|---|---|
+| WKT / WKB | 输入 + 输出 | WKT 输出每行一个几何。 | OGC 几何对象的文本和二进制编码。 |
+| GeoJSON / TopoJSON | 输入 + 输出 | `.json` 默认是 GeoJSON，需要 ESRIJSON 时传 `--to-format esrijson`。 | Web 地图常用的 JSON 矢量要素格式，以及保留拓扑关系的矢量格式。 |
+| ESRIJSON | 输入 + 输出 | ESRIJSON 输出使用 `pygeoconv`。 | ArcGIS 服务常用的 Esri JSON 几何和要素表达。 |
+| CSV WKT | 输入 + 输出 | CSV 默认使用名为 `wkt` 的 WKT 空间列。 | 属性表使用 CSV 存储，空间列使用 WKT 表达几何。 |
+| 勘测定界 TXT | 输入 + 输出 | 面和多面要素的勘测定界交换格式。 | 国土勘测定界地块坐标交换文本格式。 |
+| SHP | 输入 + 输出 | 常见桌面 GIS 交换格式。 | 由多个 sidecar 文件组成的 Esri Shapefile 矢量数据集。 |
+| GeoPackage / FlatGeobuf / SQLite | 输入 + 输出 | GeoPackage 是推荐的通用输出格式。 | 便携式文件型地理数据库和高效矢量容器。 |
+| OpenFileGDB / FileGDB | 输入 + 输出 | 写入能力取决于当前 GDAL/OGR 构建。 | Esri 文件地理数据库目录，适合存储多图层矢量数据。 |
+| DXF | 输入 + 输出 | 推荐的 CAD 交换输出；GIS 属性可能被简化。 | GIS 与 CAD 制图软件之间常用的 CAD 交换格式。 |
+| DWG | 条件输入 | 写入在路线图中；输出需要 ODA、AutoCAD、RealDWG 或其他专用工具链。 | AutoCAD 原生图形文件格式。 |
+| MDB / Personal GDB | 条件输入 | 写入在路线图中；输出需要 Windows ODBC/Access 或其他专用工具链。 | 基于 Microsoft Access 的 Esri Personal Geodatabase。 |
+| LAS / LAZ / E57 / PLY | 输入 + 输出 | 通过 PDAL 实现；LAZ 取决于本机 codec 支持。 | 用于 LiDAR 扫描和三维点数据集的点云格式。 |
+| CityGML / 3D Tiles / I3S / glTF / OBJ / DAE | 条件输入 + 输出 | 取决于本机适配器的实用三维工作流。 | 三维城市模型、流式三维场景和通用模型交换格式。 |
 
-### 输出格式
+## 路线图
 
-| 类型 | 输出格式 | 说明 |
-|---|---|---|
-| 文本几何 | WKT | 内置输出，每行一个几何。 |
-| Web 矢量 | GeoJSON、TopoJSON、ESRIJSON | ESRIJSON 输出使用 `pygeoconv`；`.json` 默认是 GeoJSON，需要 ESRIJSON 时传 `--to-format esrijson`。 |
-| 桌面矢量 | SHP、MapInfo TAB/MIF、CSV WKT | CSV 输出会写出属性列，并追加 WKT 空间列。 |
-| OGC/矢量 | GeoPackage、FlatGeobuf、GML、KML/KMZ、GPX、SQLite | GeoPackage 是推荐的通用输出格式，能较好保存属性和 CRS 元数据。 |
-| 地理数据库 | OpenFileGDB/FileGDB | 取决于当前 GDAL/OGR 构建是否支持写入。 |
-| CAD 交换 | DXF | 推荐的 CAD 输出格式；CAD 格式可能简化 GIS 属性。 |
-| 勘测交换 | 勘测定界 TXT | 仅支持面和多面输出。 |
-| 点云 | LAS、LAZ、E57、PLY | 需要 PDAL 和本机 codec 支持。 |
-
-只出现在输入表中的格式属于条件输入工作流。CAD 交换请使用 DXF；类似地理数据库的输出请使用 GeoPackage 或 OpenFileGDB。
+| 已实现 | 待实现 |
+|---|---|
+| [x] GeoJSON / WKT / CSV WKT | [ ] DWG 写入支持 |
+| [x] ESRIJSON 输出 | [ ] MDB/Personal GDB 写入支持 |
+| [x] SHP / GPKG / OpenFileGDB | [ ] 更完整的 3D Tiles / I3S 适配器 |
+| [x] DXF 输出 | [ ] 未来需要时扩展栅格工作流 |
+| [x] 勘测定界 TXT |  |
+| [x] 通过 PDAL 转换 LAS / LAZ / E57 / PLY |  |
+| [x] CRS 赋值与重投影 |  |
 
 ## CLI 用法
 
@@ -127,23 +162,33 @@ CRS 默认规则：
 - 输入 CRS 缺失或错误时，用 `--source-crs` 指定。
 - 输入 CRS 缺失且坐标看起来是经纬度时，CLI 默认赋 `EPSG:4326`。
 
-## 支持的 Agent
+## Star History
 
-安装器支持：
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date&theme=dark" />
+  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date" />
+  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date" />
+</picture>
 
-`codex`、`claude-code`、`qwen-code`、`gemini-cli`、`cursor`、`copilot`、`aider`、`continue`、`opencode`、`windsurf`。
+## Star Map
 
-使用 `--install all` 安装全部已支持集成，或使用 `--install detected` 只安装当前机器检测到的 Agent。
+<p align="center">
+  <a href="https://starmapper.bruniaux.com/tyrrs/gis-convert">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert?theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert?theme=light" />
+      <img alt="StarMapper - 查看这个仓库的全球收藏分布" src="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert" />
+    </picture>
+  </a>
+</p>
 
-## 开发与验证
+## 贡献者验证
 
-运行测试：
+提交改动前运行这条命令，用来确认 README、skill 文档、安装器和转换 CLI 仍然一致：
 
 ```bash
 python -m pytest -q
 ```
-
-确定性测试不要求本机安装 GDAL/PDAL。真实原生格式转换能力取决于当前机器安装的工具和 driver。
 
 ## 开源协议
 

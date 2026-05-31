@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from scripts.install import (
+    AGENT_TARGETS,
     InstallContext,
     SUPPORTED_TOOLS,
     build_tool_operations,
@@ -12,6 +13,8 @@ from scripts.install import (
     confirm_python_dependency_install,
     detect_tools,
     handle_native_dependencies,
+    main,
+    prompt_for_tools,
     summarize_native_dependencies,
     parse_tool_selection,
 )
@@ -65,18 +68,17 @@ def test_parse_tool_selection_accepts_comma_list():
 
 
 def test_parse_tools_expands_all_in_supported_order():
-    assert parse_tool_selection("all") == [
-        "codex",
-        "claude-code",
-        "qwen-code",
-        "gemini-cli",
-        "cursor",
-        "copilot",
-        "aider",
-        "continue",
-        "opencode",
-        "windsurf",
-    ]
+    selected = parse_tool_selection("all")
+
+    assert selected == SUPPORTED_TOOLS
+    assert selected == list(AGENT_TARGETS)
+    for tool in ["amp", "cline", "kiro-cli", "roo", "trae-cn", "adal"]:
+        assert tool in selected
+
+
+def test_parse_tool_selection_accepts_copilot_aliases():
+    assert parse_tool_selection("github-copilot") == ["github-copilot"]
+    assert parse_tool_selection("copilot") == ["github-copilot"]
 
 
 def test_detected_selection_uses_detected_tool_set(tmp_path):
@@ -84,6 +86,49 @@ def test_detected_selection_uses_detected_tool_set(tmp_path):
     detected = {"codex": True, "claude-code": False, "cursor": True}
 
     assert parse_tool_selection("detected", detected=detected) == ["codex", "cursor"]
+
+
+def test_prompt_for_tools_lists_only_detected_and_accepts_multi_select(capsys):
+    detected = {"codex": True, "claude-code": True, "cursor": False}
+
+    selected = prompt_for_tools(detected, input_fn=lambda _: "1,2")
+
+    assert selected == ["claude-code", "codex"]
+    output = capsys.readouterr().out
+    assert "Detected agents:" in output
+    assert "codex" in output
+    assert "claude-code" in output
+    assert "cursor" not in output
+
+
+def test_prompt_for_tools_enter_or_all_selects_detected():
+    detected = {"codex": True, "claude-code": True, "cursor": False}
+
+    assert prompt_for_tools(detected, input_fn=lambda _: "") == ["claude-code", "codex"]
+    assert prompt_for_tools(detected, input_fn=lambda _: "a") == ["claude-code", "codex"]
+    assert prompt_for_tools(detected, input_fn=lambda _: "all") == ["claude-code", "codex"]
+
+
+def test_prompt_for_tools_quit_returns_empty_selection():
+    assert prompt_for_tools({"claude-code": True}, input_fn=lambda _: "q") == []
+
+
+def test_prompt_for_tools_retries_invalid_selection(capsys):
+    answers = iter(["2", "1"])
+
+    selected = prompt_for_tools({"claude-code": True}, input_fn=lambda _: next(answers))
+
+    assert selected == ["claude-code"]
+    assert "Invalid selection" in capsys.readouterr().out
+
+
+def test_prompt_for_tools_without_detected_agents_returns_empty(capsys):
+    selected = prompt_for_tools({"claude-code": False, "codex": False})
+
+    assert selected == []
+    output = capsys.readouterr().out
+    assert "No installed agents were detected." in output
+    assert "--install claude-code" in output
 
 
 def test_dry_run_builds_codex_and_claude_operations_without_writing(tmp_path):
@@ -95,6 +140,7 @@ def test_dry_run_builds_codex_and_claude_operations_without_writing(tmp_path):
     assert context.home / ".codex" / "skills" / "gis-convert" in destinations
     assert context.home / ".claude" / "skills" / "gis-convert" in destinations
     assert {operation.kind for operation in operations} == {"skill-package"}
+    assert {operation.source for operation in operations} == {context.repo_root / "skills" / "gis-convert"}
     assert not (context.home / ".codex").exists()
     assert not (context.home / ".claude").exists()
 
@@ -106,7 +152,30 @@ def test_project_scope_uses_project_directory_for_claude_and_cursor(tmp_path):
 
     destinations = [operation.destination for operation in operations]
     assert context.project_dir / ".claude" / "skills" / "gis-convert" in destinations
+    assert context.project_dir / ".agents" / "skills" / "gis-convert" in destinations
     assert context.project_dir / ".cursor" / "rules" / "gis-convert.mdc" in destinations
+
+
+def test_project_scope_uses_vercel_standard_paths_for_new_agents(tmp_path):
+    context = make_context(tmp_path, dry_run=True, scope="project")
+
+    operations = build_tool_operations(["amp", "cline", "kiro-cli", "roo", "trae-cn", "adal"], context)
+    destinations = {operation.destination for operation in operations if operation.kind == "skill-package"}
+
+    assert context.project_dir / ".agents" / "skills" / "gis-convert" in destinations
+    assert context.project_dir / ".kiro" / "skills" / "gis-convert" in destinations
+    assert context.project_dir / ".roo" / "skills" / "gis-convert" in destinations
+    assert context.project_dir / ".trae" / "skills" / "gis-convert" in destinations
+    assert context.project_dir / ".adal" / "skills" / "gis-convert" in destinations
+
+
+def test_shared_skill_package_destinations_are_deduped(tmp_path):
+    context = make_context(tmp_path, dry_run=True, scope="project")
+
+    operations = build_tool_operations(["amp", "kimi-cli", "replit", "cursor"], context)
+    shared = context.project_dir / ".agents" / "skills" / "gis-convert"
+
+    assert [operation.destination for operation in operations].count(shared) == 1
 
 
 def test_actual_install_copies_codex_skill_to_temp_home(tmp_path):
@@ -134,12 +203,13 @@ def test_actual_install_copies_codex_skill_to_temp_home(tmp_path):
     assert_minimal_skill_package(tmp_path / "home" / ".codex" / "skills" / "gis-convert")
 
 
-def test_actual_install_all_writes_minimal_packages_for_every_tool(tmp_path):
+def test_actual_install_all_writes_minimal_packages_for_every_tool(tmp_path, monkeypatch):
     home = tmp_path / "home"
     project_dir = tmp_path / "project"
     env = os.environ.copy()
     env["HOME"] = str(home)
     env.pop("CODEX_HOME", None)
+    monkeypatch.delenv("CODEX_HOME", raising=False)
 
     result = subprocess.run(
         [
@@ -161,20 +231,22 @@ def test_actual_install_all_writes_minimal_packages_for_every_tool(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
+    context = InstallContext(
+        repo_root=Path(__file__).resolve().parents[1],
+        home=home,
+        project_dir=project_dir,
+        scope="user",
+        dry_run=False,
+        with_deps=False,
+        deps_only=False,
+    )
     package_dirs = {
-        "codex": home / ".codex" / "skills" / "gis-convert",
-        "claude-code": home / ".claude" / "skills" / "gis-convert",
-        "qwen-code": home / ".qwen" / "skills" / "gis-convert",
-        "gemini-cli": home / ".gemini" / "skills" / "gis-convert",
-        "cursor": home / ".cursor" / "skills" / "gis-convert",
-        "copilot": home / ".github" / "skills" / "gis-convert",
-        "aider": home / ".aider" / "skills" / "gis-convert",
-        "continue": home / ".continue" / "skills" / "gis-convert",
-        "opencode": project_dir / ".opencode" / "skills" / "gis-convert",
-        "windsurf": project_dir / ".windsurf" / "skills" / "gis-convert",
+        operation.destination
+        for operation in build_tool_operations(SUPPORTED_TOOLS, context)
+        if operation.kind == "skill-package"
     }
-    assert set(package_dirs) == set(SUPPORTED_TOOLS)
-    for package_dir in package_dirs.values():
+    assert len(package_dirs) < len(SUPPORTED_TOOLS)
+    for package_dir in package_dirs:
         assert_minimal_skill_package(package_dir)
 
 
@@ -294,6 +366,32 @@ def test_uninstall_refuses_wrong_target_type(tmp_path):
     assert target.exists()
 
 
+def test_uninstall_all_dry_run_succeeds_with_deduped_targets(tmp_path):
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path / "home")
+    env.pop("CODEX_HOME", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "scripts/install.py",
+            "--uninstall",
+            "all",
+            "--dry-run",
+            "--no-interactive",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "gis-convert uninstaller" in result.stdout
+
+
 def test_dry_run_cli_does_not_create_files(tmp_path):
     env = os.environ.copy()
     env["HOME"] = str(tmp_path / "home")
@@ -318,6 +416,54 @@ def test_dry_run_cli_does_not_create_files(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "DRY-RUN" in result.stdout
     assert not (tmp_path / "home").exists()
+
+
+def test_main_without_install_prompts_before_dependency_check(monkeypatch, tmp_path):
+    calls = []
+
+    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True, "codex": True})
+    monkeypatch.setattr(
+        "scripts.install.handle_native_dependencies",
+        lambda *args, **kwargs: calls.append("deps") or 0,
+    )
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    code = main(
+        ["--dry-run", "--project-dir", str(tmp_path / "project")],
+        input_fn=lambda _: calls.append("prompt") or "1",
+    )
+
+    assert code == 0
+    assert calls[:2] == ["prompt", "deps"]
+
+
+def test_main_explicit_install_does_not_prompt(monkeypatch, tmp_path):
+    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True})
+    monkeypatch.setattr("scripts.install.handle_native_dependencies", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("scripts.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
+
+    code = main(["--install", "claude-code", "--dry-run", "--project-dir", str(tmp_path / "project")])
+
+    assert code == 0
+
+
+def test_main_no_interactive_without_install_uses_detected(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True, "codex": False})
+    monkeypatch.setattr("scripts.install.handle_native_dependencies", lambda *args, **kwargs: 0)
+
+    code = main(["--dry-run", "--no-interactive", "--project-dir", str(tmp_path / "project")])
+
+    assert code == 0
+    assert "Tools: claude-code" in capsys.readouterr().out
+
+
+def test_main_deps_only_does_not_prompt(monkeypatch):
+    monkeypatch.setattr("scripts.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
+
+    code = main(["--deps-only", "--dry-run", "--skip-deps-check"])
+
+    assert code == 0
 
 
 def test_old_tool_arguments_are_rejected():
@@ -391,6 +537,17 @@ def test_detect_tools_uses_environment_and_project_markers(tmp_path):
     assert detected["cursor"] is True
 
 
+def test_detect_tools_does_not_treat_shared_agents_directory_as_every_agent(tmp_path):
+    context = make_context(tmp_path)
+    (context.project_dir / ".agents" / "skills").mkdir(parents=True)
+
+    detected = detect_tools(context)
+
+    assert detected["amp"] is False
+    assert detected["cline"] is False
+    assert detected["universal"] is False
+
+
 def test_shell_wrapper_help_runs():
     result = subprocess.run(
         ["bash", "scripts/install.sh", "--help"],
@@ -404,6 +561,58 @@ def test_shell_wrapper_help_runs():
     assert "--install" in result.stdout
     assert "--uninstall" in result.stdout
     assert "--tools" not in result.stdout
+
+
+def test_bootstrap_help_runs():
+    result = subprocess.run(
+        ["bash", "scripts/bootstrap.sh", "--help"],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "GIS_CONVERT_HOME" in result.stdout
+    assert "bootstrap.sh" in result.stdout
+    assert "--install claude-code" in result.stdout
+    assert "--install codex" not in result.stdout
+
+
+def test_bootstrap_clones_then_updates_existing_checkout(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path / "home")
+    env["GIS_CONVERT_HOME"] = str(tmp_path / "checkout")
+    env["GIS_CONVERT_REPO"] = str(root)
+
+    command = [
+        "bash",
+        "scripts/bootstrap.sh",
+        "--install",
+        "codex",
+        "--dry-run",
+        "--skip-deps-check",
+        "--no-interactive",
+    ]
+    first = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True, check=False)
+    second = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True, check=False)
+
+    assert first.returncode == 0, first.stderr
+    assert "Cloning gis-convert into:" in first.stdout
+    assert second.returncode == 0, second.stderr
+    assert "Updating existing gis-convert checkout:" in second.stdout
+    assert "[DRY-RUN] codex" in second.stdout
+
+
+def test_powershell_bootstrap_contains_clone_update_and_install_logic():
+    text = (Path(__file__).resolve().parents[1] / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
+
+    assert "GIS_CONVERT_HOME" in text
+    assert "GIS_CONVERT_REPO" in text
+    assert "git clone" in text
+    assert "pull --ff-only" in text
+    assert "install.ps1" in text
 
 
 def test_powershell_wrapper_contains_install_parameters():

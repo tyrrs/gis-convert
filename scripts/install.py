@@ -20,21 +20,109 @@ from scripts.check_env import inspect_environment
 from scripts.install_deps import build_install_plan, detect_platform, find_package_managers
 
 
-SUPPORTED_TOOLS = [
-    "codex",
-    "claude-code",
-    "qwen-code",
-    "gemini-cli",
-    "cursor",
-    "copilot",
-    "aider",
-    "continue",
-    "opencode",
-    "windsurf",
-]
 REQUIRED_NATIVE_TOOLS = ["gdalinfo", "ogrinfo", "ogr2ogr", "proj"]
 OPTIONAL_NATIVE_TOOLS = ["pdal"]
 PYTHON_PACKAGES = {"pygeoconv": "pygeoconv>=1.0.1,<2"}
+
+
+@dataclass(frozen=True)
+class AgentTarget:
+    """A supported agent install target and its standard skill paths."""
+
+    display_name: str
+    project_path: str
+    global_path: str
+    aliases: tuple[str, ...] = ()
+    detect_commands: tuple[str, ...] = ()
+    detect_project_paths: tuple[str, ...] = ()
+    detect_global_paths: tuple[str, ...] = ()
+    detect_env_vars: tuple[str, ...] = ()
+
+
+def agent_target(
+    display_name: str,
+    project_path: str,
+    global_path: str,
+    *,
+    aliases: tuple[str, ...] = (),
+    detect_commands: tuple[str, ...] = (),
+    detect_project_paths: tuple[str, ...] = (),
+    detect_global_paths: tuple[str, ...] = (),
+    detect_env_vars: tuple[str, ...] = (),
+) -> AgentTarget:
+    """Create an agent target using paths relative to project and home roots."""
+
+    return AgentTarget(
+        display_name=display_name,
+        project_path=project_path,
+        global_path=global_path,
+        aliases=aliases,
+        detect_commands=detect_commands,
+        detect_project_paths=detect_project_paths,
+        detect_global_paths=detect_global_paths,
+        detect_env_vars=detect_env_vars,
+    )
+
+
+AGENT_TARGETS: dict[str, AgentTarget] = {
+    "aider-desk": agent_target("AiderDesk", ".aider-desk/skills", ".aider-desk/skills", detect_commands=("aider-desk",), detect_global_paths=(".aider-desk",)),
+    "amp": agent_target("Amp", ".agents/skills", ".config/agents/skills", detect_commands=("amp",)),
+    "kimi-cli": agent_target("Kimi Code CLI", ".agents/skills", ".config/agents/skills", detect_commands=("kimi", "kimi-cli")),
+    "replit": agent_target("Replit", ".agents/skills", ".config/agents/skills", detect_commands=("replit",)),
+    "universal": agent_target("Universal", ".agents/skills", ".config/agents/skills"),
+    "antigravity": agent_target("Antigravity", ".agents/skills", ".gemini/antigravity/skills", detect_commands=("antigravity",), detect_global_paths=(".gemini/antigravity",)),
+    "augment": agent_target("Augment", ".augment/skills", ".augment/skills", detect_commands=("augment",), detect_project_paths=(".augment",), detect_global_paths=(".augment",)),
+    "bob": agent_target("IBM Bob", ".bob/skills", ".bob/skills", detect_commands=("bob",), detect_project_paths=(".bob",), detect_global_paths=(".bob",)),
+    "claude-code": agent_target("Claude Code", ".claude/skills", ".claude/skills", aliases=("claude",), detect_commands=("claude",), detect_project_paths=(".claude",), detect_global_paths=(".claude",)),
+    "openclaw": agent_target("OpenClaw", "skills", ".openclaw/skills", detect_commands=("openclaw",), detect_global_paths=(".openclaw",)),
+    "cline": agent_target("Cline", ".agents/skills", ".agents/skills", detect_commands=("cline",)),
+    "dexto": agent_target("Dexto", ".agents/skills", ".agents/skills", detect_commands=("dexto",)),
+    "warp": agent_target("Warp", ".agents/skills", ".agents/skills", detect_commands=("warp",)),
+    "codearts-agent": agent_target("CodeArts Agent", ".codeartsdoer/skills", ".codeartsdoer/skills", detect_commands=("codearts-agent", "codearts"), detect_project_paths=(".codeartsdoer",), detect_global_paths=(".codeartsdoer",)),
+    "codebuddy": agent_target("CodeBuddy", ".codebuddy/skills", ".codebuddy/skills", detect_commands=("codebuddy",), detect_project_paths=(".codebuddy",), detect_global_paths=(".codebuddy",)),
+    "codemaker": agent_target("Codemaker", ".codemaker/skills", ".codemaker/skills", detect_commands=("codemaker",), detect_project_paths=(".codemaker",), detect_global_paths=(".codemaker",)),
+    "codestudio": agent_target("Code Studio", ".codestudio/skills", ".codestudio/skills", detect_commands=("codestudio",), detect_project_paths=(".codestudio",), detect_global_paths=(".codestudio",)),
+    "codex": agent_target("Codex", ".agents/skills", ".codex/skills", detect_env_vars=("CODEX_HOME",), detect_global_paths=(".codex",)),
+    "command-code": agent_target("Command Code", ".commandcode/skills", ".commandcode/skills", detect_commands=("command-code", "commandcode"), detect_project_paths=(".commandcode",), detect_global_paths=(".commandcode",)),
+    "continue": agent_target("Continue", ".continue/skills", ".continue/skills", detect_project_paths=(".continue",), detect_global_paths=(".continue",)),
+    "cortex": agent_target("Cortex Code", ".cortex/skills", ".snowflake/cortex/skills", detect_commands=("cortex",), detect_project_paths=(".cortex",), detect_global_paths=(".snowflake/cortex",)),
+    "crush": agent_target("Crush", ".crush/skills", ".config/crush/skills", detect_commands=("crush",), detect_project_paths=(".crush",), detect_global_paths=(".config/crush",)),
+    "cursor": agent_target("Cursor", ".agents/skills", ".cursor/skills", detect_commands=("cursor",), detect_project_paths=(".cursor",), detect_global_paths=(".cursor",)),
+    "deepagents": agent_target("Deep Agents", ".agents/skills", ".deepagents/agent/skills", detect_commands=("deepagents",), detect_global_paths=(".deepagents",)),
+    "devin": agent_target("Devin for Terminal", ".devin/skills", ".config/devin/skills", detect_commands=("devin",), detect_project_paths=(".devin",), detect_global_paths=(".config/devin",)),
+    "droid": agent_target("Droid", ".factory/skills", ".factory/skills", detect_commands=("droid",), detect_project_paths=(".factory",), detect_global_paths=(".factory",)),
+    "firebender": agent_target("Firebender", ".agents/skills", ".firebender/skills", detect_commands=("firebender",), detect_global_paths=(".firebender",)),
+    "forgecode": agent_target("ForgeCode", ".forge/skills", ".forge/skills", detect_commands=("forgecode", "forge"), detect_project_paths=(".forge",), detect_global_paths=(".forge",)),
+    "gemini-cli": agent_target("Gemini CLI", ".agents/skills", ".gemini/skills", aliases=("gemini",), detect_commands=("gemini",), detect_global_paths=(".gemini",)),
+    "github-copilot": agent_target("GitHub Copilot", ".agents/skills", ".copilot/skills", aliases=("copilot",), detect_commands=("code",), detect_project_paths=(".github",), detect_global_paths=(".copilot", ".github")),
+    "goose": agent_target("Goose", ".goose/skills", ".config/goose/skills", detect_commands=("goose",), detect_project_paths=(".goose",), detect_global_paths=(".config/goose",)),
+    "hermes-agent": agent_target("Hermes Agent", ".hermes/skills", ".hermes/skills", detect_commands=("hermes-agent", "hermes"), detect_project_paths=(".hermes",), detect_global_paths=(".hermes",)),
+    "junie": agent_target("Junie", ".junie/skills", ".junie/skills", detect_commands=("junie",), detect_project_paths=(".junie",), detect_global_paths=(".junie",)),
+    "iflow-cli": agent_target("iFlow CLI", ".iflow/skills", ".iflow/skills", detect_commands=("iflow", "iflow-cli"), detect_project_paths=(".iflow",), detect_global_paths=(".iflow",)),
+    "kilo": agent_target("Kilo Code", ".kilocode/skills", ".kilocode/skills", detect_commands=("kilo",), detect_project_paths=(".kilocode",), detect_global_paths=(".kilocode",)),
+    "kiro-cli": agent_target("Kiro CLI", ".kiro/skills", ".kiro/skills", detect_commands=("kiro", "kiro-cli"), detect_project_paths=(".kiro",), detect_global_paths=(".kiro",)),
+    "kode": agent_target("Kode", ".kode/skills", ".kode/skills", detect_commands=("kode",), detect_project_paths=(".kode",), detect_global_paths=(".kode",)),
+    "mcpjam": agent_target("MCPJam", ".mcpjam/skills", ".mcpjam/skills", detect_commands=("mcpjam",), detect_project_paths=(".mcpjam",), detect_global_paths=(".mcpjam",)),
+    "mistral-vibe": agent_target("Mistral Vibe", ".vibe/skills", ".vibe/skills", detect_commands=("mistral-vibe",), detect_project_paths=(".vibe",), detect_global_paths=(".vibe",)),
+    "mux": agent_target("Mux", ".mux/skills", ".mux/skills", detect_commands=("mux",), detect_project_paths=(".mux",), detect_global_paths=(".mux",)),
+    "opencode": agent_target("OpenCode", ".agents/skills", ".config/opencode/skills", detect_commands=("opencode",), detect_global_paths=(".config/opencode",)),
+    "openhands": agent_target("OpenHands", ".openhands/skills", ".openhands/skills", detect_commands=("openhands",), detect_project_paths=(".openhands",), detect_global_paths=(".openhands",)),
+    "pi": agent_target("Pi", ".pi/skills", ".pi/agent/skills", detect_commands=("pi",), detect_project_paths=(".pi",), detect_global_paths=(".pi",)),
+    "qoder": agent_target("Qoder", ".qoder/skills", ".qoder/skills", detect_commands=("qoder",), detect_project_paths=(".qoder",), detect_global_paths=(".qoder",)),
+    "qwen-code": agent_target("Qwen Code", ".qwen/skills", ".qwen/skills", aliases=("qwen",), detect_commands=("qwen",), detect_project_paths=(".qwen",), detect_global_paths=(".qwen",)),
+    "rovodev": agent_target("Rovo Dev", ".rovodev/skills", ".rovodev/skills", detect_commands=("rovodev", "rovo"), detect_project_paths=(".rovodev",), detect_global_paths=(".rovodev",)),
+    "roo": agent_target("Roo Code", ".roo/skills", ".roo/skills", detect_commands=("roo",), detect_project_paths=(".roo",), detect_global_paths=(".roo",)),
+    "tabnine-cli": agent_target("Tabnine CLI", ".tabnine/agent/skills", ".tabnine/agent/skills", detect_commands=("tabnine", "tabnine-cli"), detect_project_paths=(".tabnine",), detect_global_paths=(".tabnine",)),
+    "trae": agent_target("Trae", ".trae/skills", ".trae/skills", detect_commands=("trae",), detect_project_paths=(".trae",), detect_global_paths=(".trae",)),
+    "trae-cn": agent_target("Trae CN", ".trae/skills", ".trae-cn/skills", detect_commands=("trae-cn",), detect_global_paths=(".trae-cn",)),
+    "windsurf": agent_target("Windsurf", ".windsurf/skills", ".codeium/windsurf/skills", detect_commands=("windsurf",), detect_project_paths=(".windsurf",), detect_global_paths=(".codeium", ".codeium/windsurf")),
+    "zencoder": agent_target("Zencoder", ".zencoder/skills", ".zencoder/skills", detect_commands=("zencoder",), detect_project_paths=(".zencoder",), detect_global_paths=(".zencoder",)),
+    "neovate": agent_target("Neovate", ".neovate/skills", ".neovate/skills", detect_commands=("neovate",), detect_project_paths=(".neovate",), detect_global_paths=(".neovate",)),
+    "pochi": agent_target("Pochi", ".pochi/skills", ".pochi/skills", detect_commands=("pochi",), detect_project_paths=(".pochi",), detect_global_paths=(".pochi",)),
+    "adal": agent_target("AdaL", ".adal/skills", ".adal/skills", detect_commands=("adal",), detect_project_paths=(".adal",), detect_global_paths=(".adal",)),
+}
+SUPPORTED_TOOLS = list(AGENT_TARGETS)
+TOOL_ALIASES = {alias: tool for tool, target in AGENT_TARGETS.items() for alias in target.aliases}
 
 
 @dataclass(frozen=True)
@@ -147,13 +235,7 @@ def normalize_tool_name(name: str) -> str:
     """Normalize supported tool aliases into canonical names."""
 
     normalized = name.strip().lower()
-    aliases = {
-        "claude": "claude-code",
-        "qwen": "qwen-code",
-        "github-copilot": "copilot",
-        "gemini": "gemini-cli",
-    }
-    return aliases.get(normalized, normalized)
+    return TOOL_ALIASES.get(normalized, normalized)
 
 
 def parse_tool_selection(
@@ -192,18 +274,15 @@ def _command_exists(name: str) -> bool:
 def detect_tools(context: InstallContext) -> dict[str, bool]:
     """Detect which supported tools appear to be installed or configured."""
 
-    return {
-        "codex": bool(os.environ.get("CODEX_HOME")) or (context.home / ".codex").exists(),
-        "claude-code": _command_exists("claude") or (context.home / ".claude").exists(),
-        "qwen-code": _command_exists("qwen") or (context.home / ".qwen").exists() or (context.project_dir / ".qwen").exists(),
-        "gemini-cli": _command_exists("gemini") or (context.home / ".gemini").exists(),
-        "cursor": _command_exists("cursor") or (context.home / ".cursor").exists() or (context.project_dir / ".cursor").exists(),
-        "copilot": _command_exists("code") or (context.home / ".github").exists() or (context.home / ".copilot").exists(),
-        "aider": _command_exists("aider"),
-        "continue": (context.home / ".continue").exists() or (context.project_dir / ".continue").exists(),
-        "opencode": _command_exists("opencode") or (context.home / ".config" / "opencode").exists() or (context.project_dir / ".opencode").exists(),
-        "windsurf": _command_exists("windsurf") or (context.home / ".codeium").exists() or (context.project_dir / ".windsurf").exists(),
-    }
+    detected: dict[str, bool] = {}
+    for tool, target in AGENT_TARGETS.items():
+        detected[tool] = (
+            any(os.environ.get(name) for name in target.detect_env_vars)
+            or any(_command_exists(command) for command in target.detect_commands)
+            or any((context.home / path).exists() for path in target.detect_global_paths)
+            or any((context.project_dir / path).exists() for path in target.detect_project_paths)
+        )
+    return detected
 
 
 def summarize_native_dependencies(report: dict[str, object]) -> NativeDependencySummary:
@@ -318,7 +397,7 @@ def generated_entry_content(tool: str, package_dir: Path) -> str:
             "---\n\n"
             f"Read and follow `{skill_path}`. Use the installed skill package at `{package_dir}`; do not assume user data directories contain `scripts/gis_convert.py`.\n"
         )
-    if tool == "copilot":
+    if tool == "github-copilot":
         return (
             "# gis-convert\n\n"
             f"For GIS conversion tasks, follow `{skill_path}`. Use the installed package at `{package_dir}` for scripts and references.\n"
@@ -369,100 +448,129 @@ def add_generated_entry_operation(operations: list[InstallOperation], tool: str,
     )
 
 
+def _relative_path(root: Path, relative: str) -> Path:
+    return root / Path(relative)
+
+
+def skill_package_destination(tool: str, context: InstallContext) -> Path:
+    """Return the standard skill package directory for one agent target."""
+
+    target = AGENT_TARGETS[tool]
+    if context.scope == "project":
+        base = _relative_path(context.project_dir, target.project_path)
+    elif tool == "codex" and os.environ.get("CODEX_HOME"):
+        base = Path(os.environ["CODEX_HOME"]) / "skills"
+    else:
+        base = _relative_path(context.home, target.global_path)
+    return base / "gis-convert"
+
+
+def generated_entry_destination(tool: str, context: InstallContext) -> tuple[Path, str] | None:
+    """Return the optional generated integration entry for tools that need one."""
+
+    if tool == "qwen-code":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".qwen" / "agents" / "gis-convert.md",
+                context.project_dir / ".qwen" / "agents" / "gis-convert.md",
+            ),
+            "Qwen Code entry",
+        )
+    if tool == "gemini-cli":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".gemini" / "commands" / "gis-convert.toml",
+                context.project_dir / ".gemini" / "commands" / "gis-convert.toml",
+            ),
+            "Gemini CLI command",
+        )
+    if tool == "cursor":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".cursor" / "rules" / "gis-convert.mdc",
+                context.project_dir / ".cursor" / "rules" / "gis-convert.mdc",
+            ),
+            "Cursor rule",
+        )
+    if tool == "github-copilot":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".github" / "instructions" / "gis-convert.instructions.md",
+                context.project_dir / ".github" / "instructions" / "gis-convert.instructions.md",
+            ),
+            "GitHub Copilot instructions",
+        )
+    if tool == "aider":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".aider.conf.yml",
+                context.project_dir / ".aider.conf.yml",
+            ),
+            "Aider config",
+        )
+    if tool == "continue":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".continue" / "rules" / "gis-convert-rule.md",
+                context.project_dir / ".continue" / "rules" / "gis-convert-rule.md",
+            ),
+            "Continue rule",
+        )
+    if tool == "opencode":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".config" / "opencode" / "agents" / "gis-convert.md",
+                context.project_dir / ".opencode" / "agents" / "gis-convert.md",
+            ),
+            "OpenCode agent",
+        )
+    if tool == "windsurf":
+        return (
+            _user_or_project(
+                context,
+                context.home / ".windsurfrules",
+                context.project_dir / ".windsurfrules",
+            ),
+            "Windsurf rules",
+        )
+    return None
+
+
+def dedupe_operations(operations: Iterable[InstallOperation]) -> list[InstallOperation]:
+    """Remove duplicate destination operations while preserving the first target."""
+
+    deduped: list[InstallOperation] = []
+    seen: set[tuple[str, Path]] = set()
+    for operation in operations:
+        key = (operation.kind, operation.destination)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(operation)
+    return deduped
+
+
 def build_tool_operations(tools: Iterable[str], context: InstallContext) -> list[InstallOperation]:
     """Build copy operations for selected tools."""
 
     repo = context.repo_root
     operations: list[InstallOperation] = []
     for tool in tools:
-        if tool == "codex":
-            codex_home = Path(os.environ.get("CODEX_HOME", str(context.home / ".codex")))
-            add_skill_package_operation(operations, tool, repo, codex_home / "skills" / "gis-convert", "Codex skill package")
-        elif tool == "claude-code":
-            destination = _user_or_project(
-                context,
-                context.home / ".claude" / "skills" / "gis-convert",
-                context.project_dir / ".claude" / "skills" / "gis-convert",
-            )
-            add_skill_package_operation(operations, tool, repo, destination, "Claude Code skill package")
-        elif tool == "qwen-code":
-            package_dir = _user_or_project(
-                context,
-                context.home / ".qwen" / "skills" / "gis-convert",
-                context.project_dir / ".qwen" / "skills" / "gis-convert",
-            )
-            entry = _user_or_project(
-                context,
-                context.home / ".qwen" / "agents" / "gis-convert.md",
-                context.project_dir / ".qwen" / "agents" / "gis-convert.md",
-            )
-            add_skill_package_operation(operations, tool, repo, package_dir, "Qwen Code skill package")
-            add_generated_entry_operation(operations, tool, repo, entry, package_dir, "Qwen Code entry")
-        elif tool == "gemini-cli":
-            package_dir = context.home / ".gemini" / "skills" / "gis-convert"
-            add_skill_package_operation(operations, tool, repo, package_dir, "Gemini CLI skill package")
-            add_generated_entry_operation(operations, tool, repo, context.home / ".gemini" / "commands" / "gis-convert.toml", package_dir, "Gemini CLI command")
-        elif tool == "cursor":
-            package_dir = _user_or_project(
-                context,
-                context.home / ".cursor" / "skills" / "gis-convert",
-                context.project_dir / ".cursor" / "skills" / "gis-convert",
-            )
-            entry = _user_or_project(
-                context,
-                context.home / ".cursor" / "rules" / "gis-convert.mdc",
-                context.project_dir / ".cursor" / "rules" / "gis-convert.mdc",
-            )
-            add_skill_package_operation(operations, tool, repo, package_dir, "Cursor skill package")
-            add_generated_entry_operation(operations, tool, repo, entry, package_dir, "Cursor rule")
-        elif tool == "copilot":
-            package_dir = _user_or_project(
-                context,
-                context.home / ".github" / "skills" / "gis-convert",
-                context.project_dir / ".github" / "skills" / "gis-convert",
-            )
-            entry = _user_or_project(
-                context,
-                context.home / ".github" / "instructions" / "gis-convert.instructions.md",
-                context.project_dir / ".github" / "instructions" / "gis-convert.instructions.md",
-            )
-            add_skill_package_operation(operations, tool, repo, package_dir, "GitHub Copilot skill package")
-            add_generated_entry_operation(operations, tool, repo, entry, package_dir, "GitHub Copilot instructions")
-        elif tool == "aider":
-            package_dir = _user_or_project(
-                context,
-                context.home / ".aider" / "skills" / "gis-convert",
-                context.project_dir / ".aider" / "skills" / "gis-convert",
-            )
-            entry = _user_or_project(
-                context,
-                context.home / ".aider.conf.yml",
-                context.project_dir / ".aider.conf.yml",
-            )
-            add_skill_package_operation(operations, tool, repo, package_dir, "Aider skill package")
-            add_generated_entry_operation(operations, tool, repo, entry, package_dir, "Aider config")
-        elif tool == "continue":
-            package_dir = _user_or_project(
-                context,
-                context.home / ".continue" / "skills" / "gis-convert",
-                context.project_dir / ".continue" / "skills" / "gis-convert",
-            )
-            entry = _user_or_project(
-                context,
-                context.home / ".continue" / "rules" / "gis-convert-rule.md",
-                context.project_dir / ".continue" / "rules" / "gis-convert-rule.md",
-            )
-            add_skill_package_operation(operations, tool, repo, package_dir, "Continue skill package")
-            add_generated_entry_operation(operations, tool, repo, entry, package_dir, "Continue rule")
-        elif tool == "opencode":
-            package_dir = context.project_dir / ".opencode" / "skills" / "gis-convert"
-            add_skill_package_operation(operations, tool, repo, package_dir, "OpenCode skill package")
-            add_generated_entry_operation(operations, tool, repo, context.project_dir / ".opencode" / "agents" / "gis-convert.md", package_dir, "OpenCode project agent")
-        elif tool == "windsurf":
-            package_dir = context.project_dir / ".windsurf" / "skills" / "gis-convert"
-            add_skill_package_operation(operations, tool, repo, package_dir, "Windsurf skill package")
-            add_generated_entry_operation(operations, tool, repo, context.project_dir / ".windsurfrules", package_dir, "Windsurf project rules")
-    return operations
+        target = AGENT_TARGETS[tool]
+        package_dir = skill_package_destination(tool, context)
+        add_skill_package_operation(operations, tool, repo, package_dir, f"{target.display_name} skill package")
+        generated_entry = generated_entry_destination(tool, context)
+        if generated_entry is not None:
+            entry, description = generated_entry
+            add_generated_entry_operation(operations, tool, repo, entry, package_dir, description)
+    return dedupe_operations(operations)
 
 
 def apply_operation(operation: InstallOperation, dry_run: bool) -> None:
@@ -664,21 +772,45 @@ def handle_native_dependencies(
     return 0
 
 
-def prompt_for_tools(detected: dict[str, bool]) -> list[str]:
+def prompt_for_tools(detected: dict[str, bool], input_fn: Callable[[str], str] = input) -> list[str]:
     """Prompt for an interactive tool selection."""
 
-    print("Select tools to install (comma-separated numbers, Enter for detected):")
-    for index, tool in enumerate(SUPPORTED_TOOLS, start=1):
-        marker = "*" if detected.get(tool) else " "
-        print(f"  {index}. [{marker}] {tool}")
-    answer = input("> ").strip()
-    if not answer:
-        return [tool for tool in SUPPORTED_TOOLS if detected.get(tool)]
-    selected: list[str] = []
-    for part in answer.split(","):
-        index = int(part.strip())
-        selected.append(SUPPORTED_TOOLS[index - 1])
-    return selected
+    interactive_order = ["claude-code", *[tool for tool in SUPPORTED_TOOLS if tool != "claude-code"]]
+    detected_tools = [tool for tool in interactive_order if detected.get(tool)]
+    if not detected_tools:
+        print("No installed agents were detected.")
+        print("Use --install claude-code, --install codex, or --install all to choose a target explicitly.")
+        return []
+
+    print("Detected agents:")
+    for index, tool in enumerate(detected_tools, start=1):
+        print(f"  {index}. {tool}")
+    print("")
+
+    while True:
+        answer = input_fn("Select agents to install (comma-separated numbers, a=all, q=cancel, Enter=all): ").strip().lower()
+        if answer in {"", "a", "all"}:
+            return detected_tools
+        if answer in {"q", "quit"}:
+            return []
+
+        selected: list[str] = []
+        seen: set[int] = set()
+        invalid = False
+        for part in answer.split(","):
+            value = part.strip()
+            if not value.isdigit():
+                invalid = True
+                break
+            index = int(value)
+            if index < 1 or index > len(detected_tools) or index in seen:
+                invalid = True
+                break
+            seen.add(index)
+            selected.append(detected_tools[index - 1])
+        if selected and not invalid:
+            return selected
+        print("Invalid selection. Enter numbers from the list, separated by commas, or q to cancel.")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -721,6 +853,22 @@ def main(argv: list[str] | None = None, input_fn: Callable[[str], str] | None = 
     if uninstalling and (args.with_deps or args.deps_only or args.require_deps):
         parser.error("--uninstall cannot be combined with --with-deps, --deps-only, or --require-deps")
 
+    try:
+        tools = parse_tool_selection(args.uninstall if uninstalling else args.install, detected=detected)
+    except ValueError as exc:
+        print(f"install.py: {exc}", file=sys.stderr)
+        return 2
+
+    if not tools and not uninstalling and not context.deps_only:
+        if args.interactive or (not args.no_interactive and sys.stdin.isatty() and sys.stdout.isatty()):
+            tools = prompt_for_tools(detected, input_fn=input_fn or input)
+        else:
+            tools = parse_tool_selection("detected", detected=detected)
+
+    if not tools and not context.deps_only:
+        print("No tools selected or detected. Use --install claude-code, --install codex, --install all, or --interactive.")
+        return 0
+
     if not uninstalling and not args.skip_deps_check:
         dep_code = handle_native_dependencies(
             context,
@@ -736,38 +884,6 @@ def main(argv: list[str] | None = None, input_fn: Callable[[str], str] | None = 
     if args.skip_deps_check and context.deps_only:
         return run_all_dependency_install(context, yes=args.yes)
     if context.deps_only:
-        return 0
-
-    try:
-        tools = parse_tool_selection(args.uninstall if uninstalling else args.install, detected=detected)
-    except ValueError as exc:
-        print(f"install.py: {exc}", file=sys.stderr)
-        return 2
-
-    if not tools and not uninstalling:
-        if args.interactive or (not args.no_interactive and sys.stdin.isatty() and sys.stdout.isatty()):
-            if input_fn is not None:
-                original_input = __builtins__["input"] if isinstance(__builtins__, dict) else __builtins__.input
-                try:
-                    if isinstance(__builtins__, dict):
-                        __builtins__["input"] = input_fn
-                    else:
-                        __builtins__.input = input_fn
-                    tools = prompt_for_tools(detected)
-                finally:
-                    if isinstance(__builtins__, dict):
-                        __builtins__["input"] = original_input
-                    else:
-                        __builtins__.input = original_input
-            else:
-                tools = prompt_for_tools(detected)
-        else:
-            tools = parse_tool_selection("detected", detected=detected)
-
-    if not tools:
-        print("No tools selected or detected. Use --install codex, --install all, or --interactive.")
-        if context.with_deps:
-            return run_all_dependency_install(context, yes=args.yes)
         return 0
 
     print("gis-convert uninstaller" if uninstalling else "gis-convert installer")

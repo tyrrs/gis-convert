@@ -2,104 +2,139 @@
 
 English｜[简体中文](README.zh-CN.md)
 
-`gis-convert` is an open-source Agent Skill and Python CLI for converting GIS data across practical vector, geodatabase, CAD exchange, point-cloud, and 3D GIS workflows. It detects local GDAL/OGR, PROJ, PDAL, and Python package support, maps output drivers from file suffixes, and reports clear fallbacks for formats that are proprietary or read-only in common environments.
+Convert GIS data between WKT, GeoJSON, SHP, GDB, DXF, CSV, ESRIJSON, point clouds, and practical 3D formats.
 
-## Quick Install
+It focuses on real, usable conversions across open GIS formats, with clear alternatives when proprietary formats need special toolchains.
 
-Install the skill into an agent:
+Works with Claude Code, Codex, Cursor, OpenCode, Qwen Code, Gemini CLI, GitHub Copilot, Continue, and Windsurf.
+
+<details>
+<summary>More</summary>
+
+AiderDesk, Amp, Kimi Code CLI, Replit, Universal, Antigravity, Augment, IBM Bob, OpenClaw, Cline, Dexto, Warp, CodeArts Agent, CodeBuddy, Codemaker, Code Studio, Command Code, Cortex Code, Crush, Deep Agents, Devin for Terminal, Droid, Firebender, ForgeCode, Goose, Hermes Agent, Junie, iFlow CLI, Kilo Code, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, OpenHands, Pi, Qoder, Rovo Dev, Roo Code, Tabnine CLI, Trae, Trae CN, Zencoder, Neovate, Pochi, AdaL
+
+</details>
+
+## Quickstart
+
+Install the skill with the standard Skills CLI:
 
 ```bash
-git clone <repo-url>
+npx skills add tyrrs/gis-convert
+```
+
+This is a skill-only install. It installs the `SKILL.md` package, but it does not install GDAL/OGR, PROJ, PDAL, or Python package dependencies.
+
+## Full Install with Dependency Checks
+
+Use the repository installer when you want dependency checks and optional dependency installation. The installer checks dependencies by default and asks before installing large native GIS dependencies.
+
+Run the installer without an agent name to choose from detected agents interactively. In non-interactive `curl | bash` environments, it falls back to detected agents automatically.
+
+macOS / Linux / WSL / Git Bash:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.sh | bash
+```
+
+Manual macOS / Linux install:
+
+```bash
+git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.sh --install codex
-```
-
-Install multiple agents:
-
-```bash
-./scripts/install.sh --install codex,claude-code,qwen-code
-```
-
-Install agent integration and GIS dependencies together:
-
-```bash
-./scripts/install.sh --install codex --with-deps
-```
-
-If dependencies are already installed and you only want to add another agent:
-
-```bash
-./scripts/install.sh --install claude-code --skip-deps-check
+./scripts/install.sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-./scripts/install.ps1 -Install codex
+irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.ps1 | iex
 ```
 
-Uninstall an agent integration without removing GIS dependencies:
+Manual Windows install:
+
+```powershell
+git clone https://github.com/tyrrs/gis-convert.git
+cd gis-convert
+./scripts/install.ps1
+```
+
+Common options:
 
 ```bash
-./scripts/install.sh --uninstall codex
+./scripts/install.sh --install claude-code,codex,qwen-code
+./scripts/install.sh --install all
+./scripts/install.sh --install detected
+./scripts/install.sh --install claude-code --with-deps
+./scripts/install.sh --install claude-code --skip-deps-check
+./scripts/install.sh --uninstall claude-code
 ```
-
-The installer copies only the minimal runtime package into agent directories:
-
-```text
-SKILL.md
-scripts/
-references/
-```
-
-## Dependency Check
-
-Before real conversion work, check the local environment:
-
-```bash
-python scripts/check_env.py
-```
-
-To print an install plan for GDAL/OGR, PROJ, PDAL, and Python package dependencies:
-
-```bash
-python scripts/install_deps.py
-```
-
-The quick installer also checks dependencies by default. It asks before installing large native GIS dependencies. PDAL is optional and only needed for point-cloud conversion. `pygeoconv` is only needed for ESRIJSON output.
 
 ## Format Flow
 
-`Input formats -> gis-convert CLI -> Output formats`
+<table>
+  <tr>
+    <td valign="top">
+      <strong>Input formats</strong>
+      <table>
+        <tr><td>WKT, WKB</td></tr>
+        <tr><td>GeoJSON, TopoJSON, ESRIJSON</td></tr>
+        <tr><td>SHP, MapInfo TAB/MIF, CSV WKT</td></tr>
+        <tr><td>GeoPackage, FlatGeobuf, GML, KML/KMZ, GPX, SQLite</td></tr>
+        <tr><td>FileGDB/OpenFileGDB, conditional MDB/Personal GDB input</td></tr>
+        <tr><td>DXF, conditional DWG input</td></tr>
+        <tr><td>Land-boundary TXT</td></tr>
+        <tr><td>LAS, LAZ, E57, PLY</td></tr>
+        <tr><td>CityGML, 3D Tiles, I3S/SLPK, glTF/GLB, OBJ, DAE</td></tr>
+      </table>
+    </td>
+    <td align="center" valign="middle"><strong style="font-size: 2rem;">→</strong></td>
+    <td valign="top">
+      <strong>Output formats</strong>
+      <table>
+        <tr><td>WKT</td></tr>
+        <tr><td>GeoJSON, TopoJSON, ESRIJSON</td></tr>
+        <tr><td>SHP, MapInfo TAB/MIF, CSV WKT</td></tr>
+        <tr><td>GeoPackage, FlatGeobuf, GML, KML/KMZ, GPX, SQLite</td></tr>
+        <tr><td>OpenFileGDB/FileGDB</td></tr>
+        <tr><td>DXF</td></tr>
+        <tr><td>Land-boundary TXT</td></tr>
+        <tr><td>LAS, LAZ, E57, PLY</td></tr>
+        <tr><td>Practical 3D outputs where local adapters support them</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
-### Input Formats
+## Format Reference
 
-| Category | Input formats | Notes |
-|---|---|---|
-| Text geometry | WKT, WKB | WKT has built-in lightweight handling for common geometry types. |
-| Web vector | GeoJSON, TopoJSON, ESRIJSON | ESRIJSON reading depends on local driver/package support. |
-| Desktop vector | SHP, MapInfo TAB/MIF, CSV WKT | CSV input expects a WKT geometry column, default `wkt`. |
-| OGC/vector | GeoPackage, FlatGeobuf, GML, KML/KMZ, GPX, SQLite | Support depends on local GDAL/OGR drivers. |
-| Geodatabase | FileGDB/OpenFileGDB, MDB/Personal GDB | MDB/Personal GDB is conditional and often read-only outside Windows/ODBC setups. |
-| CAD/BIM | DXF, DWG, IFC | DXF is the preferred open CAD path. DWG/IFC depend on local optional toolchains. |
-| Survey exchange | Land-boundary TXT | Supports the `[属性描述]` plus `[地块坐标]` land-boundary exchange style. |
-| Point cloud | LAS, LAZ, E57, PLY | Requires PDAL. LAZ also depends on the local PDAL build. |
-| Practical 3D | CityGML, 3D Tiles, I3S/SLPK, glTF/GLB, OBJ, DAE | Uses GDAL/OGR or dedicated adapters where available. |
+| Format | Direction | Notes | Description |
+|---|---|---|---|
+| WKT / WKB | Input + output | WKT output writes one geometry per line. | Text and binary encodings for individual OGC geometries. |
+| GeoJSON / TopoJSON | Input + output | `.json` defaults to GeoJSON unless `--to-format esrijson` is used. | JSON formats for web mapping vector features and topology-preserving vector data. |
+| ESRIJSON | Input + output | ESRIJSON output uses `pygeoconv`. | Esri's JSON geometry and feature representation used by ArcGIS services. |
+| CSV WKT | Input + output | CSV uses a WKT geometry column named `wkt` by default. | Attribute table stored as CSV with geometry in a WKT column. |
+| Land-boundary TXT | Input + output | Polygon and multipolygon output for land-boundary exchange. | Chinese land-boundary parcel exchange text format. |
+| SHP | Input + output | Common desktop GIS exchange format. | Esri Shapefile vector dataset made of sidecar files. |
+| GeoPackage / FlatGeobuf / SQLite | Input + output | GeoPackage is the recommended portable default. | Portable file-based geospatial databases and efficient vector containers. |
+| OpenFileGDB / FileGDB | Input + output | Writing depends on the installed GDAL/OGR build. | Esri file geodatabase folders for multi-layer vector datasets. |
+| DXF | Input + output | Preferred CAD exchange output. GIS attributes may be simplified. | CAD exchange format commonly used between GIS and drafting tools. |
+| DWG | Conditional input | Write support is planned; output needs ODA, AutoCAD, RealDWG, or another dedicated toolchain. | Native AutoCAD drawing format. |
+| MDB / Personal GDB | Conditional input | Write support is planned; output needs Windows ODBC/Access or another dedicated toolchain. | Microsoft Access based Esri Personal Geodatabase. |
+| LAS / LAZ / E57 / PLY | Input + output | Implemented through PDAL. LAZ depends on local codec support. | Point-cloud formats for LiDAR scans and 3D point datasets. |
+| CityGML / 3D Tiles / I3S / glTF / OBJ / DAE | Conditional input + output | Adapter-dependent practical 3D workflows. | 3D city, streaming scene, and model exchange formats. |
 
-### Output Formats
+## Roadmap
 
-| Category | Output formats | Notes |
-|---|---|---|
-| Text geometry | WKT | Built-in output, one geometry per line. |
-| Web vector | GeoJSON, TopoJSON, ESRIJSON | ESRIJSON output uses `pygeoconv`; `.json` defaults to GeoJSON unless `--to-format esrijson` is used. |
-| Desktop vector | SHP, MapInfo TAB/MIF, CSV WKT | CSV output writes attribute columns plus a WKT geometry column. |
-| OGC/vector | GeoPackage, FlatGeobuf, GML, KML/KMZ, GPX, SQLite | GeoPackage is the recommended portable default for attributes and CRS metadata. |
-| Geodatabase | OpenFileGDB/FileGDB | Availability depends on the installed GDAL/OGR build. |
-| CAD exchange | DXF | Preferred CAD output. GIS attributes may be simplified by the CAD format. |
-| Survey exchange | Land-boundary TXT | Polygon and multipolygon output only. |
-| Point cloud | LAS, LAZ, E57, PLY | Requires PDAL and local codec support. |
-
-Formats shown only in the input table are conditional input workflows. Use DXF for CAD exchange, and use GeoPackage or OpenFileGDB for geodatabase-style output.
+| Implemented | Planned |
+|---|---|
+| [x] GeoJSON / WKT / CSV WKT | [ ] DWG write support |
+| [x] ESRIJSON output | [ ] MDB/Personal GDB write support |
+| [x] SHP / GPKG / OpenFileGDB | [ ] Richer 3D Tiles / I3S adapters |
+| [x] DXF output | [ ] Raster workflows if later needed |
+| [x] Land-boundary TXT |  |
+| [x] LAS / LAZ / E57 / PLY through PDAL |  |
+| [x] CRS assignment and reprojection |  |
 
 ## CLI Usage
 
@@ -127,23 +162,33 @@ CRS defaults:
 - Use `--source-crs` when the input CRS is missing or wrong.
 - If input CRS is missing and coordinates look like longitude/latitude, the CLI assigns `EPSG:4326`.
 
-## Supported Agents
+## Star History
 
-The installer supports:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date&theme=dark" />
+  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date" />
+  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=tyrrs/gis-convert&type=Date" />
+</picture>
 
-`codex`, `claude-code`, `qwen-code`, `gemini-cli`, `cursor`, `copilot`, `aider`, `continue`, `opencode`, `windsurf`.
+## Star Map
 
-Use `--install all` for every supported integration, or `--install detected` for agents detected on the current machine.
+<p align="center">
+  <a href="https://starmapper.bruniaux.com/tyrrs/gis-convert">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert?theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert?theme=light" />
+      <img alt="StarMapper - see who stars this repo on a world map" src="https://starmapper.bruniaux.com/api/map-image/tyrrs/gis-convert" />
+    </picture>
+  </a>
+</p>
 
-## Development
+## For Contributors
 
-Run tests:
+Use this check before submitting changes. It verifies the README, skill document, installer, and conversion CLI stay aligned:
 
 ```bash
 python -m pytest -q
 ```
-
-The deterministic tests do not require local GDAL/PDAL. Real native conversion support depends on the tools and drivers installed on the machine.
 
 ## License
 
