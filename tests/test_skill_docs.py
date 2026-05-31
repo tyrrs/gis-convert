@@ -32,7 +32,7 @@ def test_canonical_skill_uses_skill_root_not_parent_relative_scripts_or_readme()
     assert "Error Handling" in text
     assert "../../scripts" not in text
     assert "README.md" not in text
-    assert "./scripts/install.sh" not in text
+    assert "./install/install.sh" not in text
     assert "conda create" not in text
     assert "pip install" not in text
     assert "brew install" not in text
@@ -119,20 +119,28 @@ def test_github_readmes_have_language_switch_format_tables_and_license():
             assert agent in hidden_agents
 
     for text in [english, chinese]:
-        assert "curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.sh | bash" in text
-        assert "irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.ps1 | iex" in text
+        assert "curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash" in text
+        assert "irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.ps1 | iex" in text
         assert "bash -s -- --install claude-code" not in text
+        assert "bash -s -- --uninstall claude-code" in text
+        assert "bash -s -- --uninstall all" in text
         assert "tyrr-hz/gis-convert" not in text
         assert "does not install GDAL/OGR, PROJ, PDAL" in text or "不会安装 GDAL/OGR、PROJ、PDAL" in text
         assert "detected agents" in text or "检测到的 Agent" in text
-        assert "./scripts/install.sh\n```" in text
-        assert "./scripts/install.sh --install claude-code" in text
-        assert "./scripts/install.sh --install all" in text
-        assert "./scripts/install.sh --install detected" in text
-        assert "./scripts/install.sh --uninstall claude-code" in text
+        assert "falls back to detected agents automatically" not in text
+        assert "自动回退为安装检测到的 Agent" not in text
+        assert "temporary" in text or "临时目录" in text
+        assert "./install/install.sh\n```" in text
+        assert "./install/install.sh --install claude-code" in text
+        assert "./install/install.sh --install all" in text
+        assert "./install/install.sh --install detected" in text
+        assert "./install/install.sh --uninstall claude-code" in text
+        assert "./install/install.sh --uninstall all" in text
+        assert "./install/install.ps1 -Uninstall claude-code" in text
+        assert "./install/install.ps1 -Uninstall all" in text
         assert "git clone https://github.com/tyrrs/gis-convert.git" in text
         assert "git clone https://github.com/tyrrs/gis-convert.git" in text
-        assert "./scripts/install.ps1\n```" in text
+        assert "./install/install.ps1\n```" in text
         assert "Advanced checks" not in text
         assert "高级检查" not in text
         assert "npx gis-convert --install codex" not in text

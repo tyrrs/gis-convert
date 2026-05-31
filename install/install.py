@@ -17,7 +17,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.check_env import inspect_environment
-from scripts.install_deps import build_install_plan, detect_platform, find_package_managers
+from install.install_deps import build_install_plan, detect_platform, find_package_managers
 
 
 REQUIRED_NATIVE_TOOLS = ["gdalinfo", "ogrinfo", "ogr2ogr", "proj"]
@@ -210,8 +210,9 @@ def copy_minimal_skill_package(repo_root: Path, destination: Path) -> None:
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
     copy_file(source_skill, destination / "SKILL.md")
-    for directory_name in ("scripts", "references"):
-        copy_directory(repo_root / directory_name, destination / directory_name)
+    for script_name in ("gis_convert.py", "check_env.py"):
+        copy_file(repo_root / "scripts" / script_name, destination / "scripts" / script_name)
+    copy_directory(repo_root / "references", destination / "references")
     required_files = [
         destination / "SKILL.md",
         destination / "scripts" / "gis_convert.py",
@@ -624,7 +625,7 @@ def run_dependency_install(context: InstallContext, yes: bool, dependency_group:
 
     command = [
         sys.executable,
-        str(context.repo_root / "scripts" / "install_deps.py"),
+        str(context.repo_root / "install" / "install_deps.py"),
         "--apply",
         "--dependency-group",
         dependency_group,
@@ -720,7 +721,7 @@ def handle_native_dependencies(
             return 1
         else:
             print("Agent integration can still be installed, but GIS conversion is limited until required dependencies are installed.")
-            print("Install later with: ./scripts/install.sh --deps-only")
+            print("Install later with: ./install/install.sh --deps-only")
 
     if summary.optional_missing:
         print("PDAL is optional and only needed for LAS/LAZ/E57/PLY point-cloud conversion.")
@@ -863,7 +864,9 @@ def main(argv: list[str] | None = None, input_fn: Callable[[str], str] | None = 
         if args.interactive or (not args.no_interactive and sys.stdin.isatty() and sys.stdout.isatty()):
             tools = prompt_for_tools(detected, input_fn=input_fn or input)
         else:
-            tools = parse_tool_selection("detected", detected=detected)
+            print("No interactive terminal is available, so no agent was selected.", file=sys.stderr)
+            print("Run ./install/install.sh in a terminal, or pass --install <agent|detected|all>.", file=sys.stderr)
+            return 2
 
     if not tools and not context.deps_only:
         print("No tools selected or detected. Use --install claude-code, --install codex, --install all, or --interactive.")

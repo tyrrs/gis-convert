@@ -29,12 +29,12 @@ This is a skill-only install. It installs the `SKILL.md` package, but it does no
 
 Use the repository installer when you want dependency checks and optional dependency installation. The installer checks dependencies by default and asks before installing large native GIS dependencies.
 
-Run the installer without an agent name to choose from detected agents interactively. In non-interactive `curl | bash` environments, it falls back to detected agents automatically.
+Run the installer without an agent name to choose from detected agents interactively. The `curl | bash` installer reconnects to your terminal when one is available; in automation, pass `--install detected`, `--install all`, or a specific agent. The bootstrap checkout is temporary and is cleaned up after the installer finishes unless `GIS_CONVERT_HOME` is set.
 
 macOS / Linux / WSL / Git Bash:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash
 ```
 
 Manual macOS / Linux install:
@@ -42,13 +42,13 @@ Manual macOS / Linux install:
 ```bash
 git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.sh
+./install/install.sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.ps1 | iex
 ```
 
 Manual Windows install:
@@ -56,18 +56,28 @@ Manual Windows install:
 ```powershell
 git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.ps1
+./install/install.ps1
 ```
 
 Common options:
 
 ```bash
-./scripts/install.sh --install claude-code,codex,qwen-code
-./scripts/install.sh --install all
-./scripts/install.sh --install detected
-./scripts/install.sh --install claude-code --with-deps
-./scripts/install.sh --install claude-code --skip-deps-check
-./scripts/install.sh --uninstall claude-code
+./install/install.sh --install claude-code,codex,qwen-code
+./install/install.sh --install all
+./install/install.sh --install detected
+./install/install.sh --install claude-code --with-deps
+./install/install.sh --install claude-code --skip-deps-check
+./install/install.sh --uninstall claude-code
+./install/install.sh --uninstall all
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash -s -- --uninstall claude-code
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash -s -- --uninstall all
+```
+
+PowerShell options:
+
+```powershell
+./install/install.ps1 -Uninstall claude-code
+./install/install.ps1 -Uninstall all
 ```
 
 ## Format Flow

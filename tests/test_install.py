@@ -1,9 +1,11 @@
 import os
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from scripts.install import (
+from install.install import (
     AGENT_TARGETS,
     InstallContext,
     SUPPORTED_TOOLS,
@@ -31,11 +33,19 @@ EXCLUDED_PACKAGE_PATHS = [
     "README.md",
     "README.zh-CN.md",
     ".git",
+    "install",
     "tests",
     "adapters",
     "agents",
     "commands",
     "skills",
+    "scripts/__init__.py",
+    "scripts/bootstrap.sh",
+    "scripts/bootstrap.ps1",
+    "scripts/install.sh",
+    "scripts/install.ps1",
+    "scripts/install.py",
+    "scripts/install_deps.py",
 ]
 
 
@@ -56,11 +66,32 @@ def make_context(tmp_path, dry_run=True, scope="user"):
     )
 
 
+def make_bootstrap_source_repo(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    source = tmp_path / "source-repo"
+    shutil.copytree(
+        root,
+        source,
+        ignore=shutil.ignore_patterns(".git", ".DS_Store", ".idea", ".pytest_cache", "__pycache__"),
+    )
+    subprocess.run(["git", "init"], cwd=source, text=True, capture_output=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=source, text=True, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "fixture"],
+        cwd=source,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return source
+
+
 def assert_minimal_skill_package(package_dir):
     for relative_path in MINIMAL_PACKAGE_FILES:
         assert (package_dir / relative_path).exists(), relative_path
     for relative_path in EXCLUDED_PACKAGE_PATHS:
         assert not (package_dir / relative_path).exists(), relative_path
+    assert sorted(path.name for path in (package_dir / "scripts").iterdir()) == ["check_env.py", "gis_convert.py"]
 
 
 def test_parse_tool_selection_accepts_comma_list():
@@ -187,7 +218,7 @@ def test_actual_install_copies_codex_skill_to_temp_home(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "codex",
             "--no-interactive",
@@ -215,7 +246,7 @@ def test_actual_install_all_writes_minimal_packages_for_every_tool(tmp_path, mon
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "all",
             "--skip-deps-check",
@@ -263,7 +294,7 @@ def test_uninstall_removes_codex_skill_from_temp_home(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "codex",
             "--no-interactive",
@@ -293,7 +324,7 @@ def test_uninstall_dry_run_does_not_remove_codex_skill(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "codex",
             "--dry-run",
@@ -320,7 +351,7 @@ def test_uninstall_missing_target_succeeds_with_skip(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "codex",
             "--no-interactive",
@@ -349,7 +380,7 @@ def test_uninstall_refuses_wrong_target_type(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "codex",
             "--no-interactive",
@@ -375,7 +406,7 @@ def test_uninstall_all_dry_run_succeeds_with_deduped_targets(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "all",
             "--dry-run",
@@ -400,7 +431,7 @@ def test_dry_run_cli_does_not_create_files(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "codex,claude-code",
             "--dry-run",
@@ -421,9 +452,9 @@ def test_dry_run_cli_does_not_create_files(tmp_path):
 def test_main_without_install_prompts_before_dependency_check(monkeypatch, tmp_path):
     calls = []
 
-    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True, "codex": True})
+    monkeypatch.setattr("install.install.detect_tools", lambda context: {"claude-code": True, "codex": True})
     monkeypatch.setattr(
-        "scripts.install.handle_native_dependencies",
+        "install.install.handle_native_dependencies",
         lambda *args, **kwargs: calls.append("deps") or 0,
     )
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
@@ -439,27 +470,43 @@ def test_main_without_install_prompts_before_dependency_check(monkeypatch, tmp_p
 
 
 def test_main_explicit_install_does_not_prompt(monkeypatch, tmp_path):
-    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True})
-    monkeypatch.setattr("scripts.install.handle_native_dependencies", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("scripts.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
+    monkeypatch.setattr("install.install.detect_tools", lambda context: {"claude-code": True})
+    monkeypatch.setattr("install.install.handle_native_dependencies", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("install.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
 
     code = main(["--install", "claude-code", "--dry-run", "--project-dir", str(tmp_path / "project")])
 
     assert code == 0
 
 
-def test_main_no_interactive_without_install_uses_detected(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr("scripts.install.detect_tools", lambda context: {"claude-code": True, "codex": False})
-    monkeypatch.setattr("scripts.install.handle_native_dependencies", lambda *args, **kwargs: 0)
+def test_main_no_interactive_without_install_fails_without_silent_detected(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("install.install.detect_tools", lambda context: {"claude-code": True, "codex": False})
+    monkeypatch.setattr(
+        "install.install.handle_native_dependencies",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected dependency check")),
+    )
 
     code = main(["--dry-run", "--no-interactive", "--project-dir", str(tmp_path / "project")])
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "No interactive terminal is available" in captured.err
+    assert "--install <agent|detected|all>" in captured.err
+    assert "Tools: claude-code" not in captured.out
+
+
+def test_main_explicit_install_detected_still_uses_detected(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("install.install.detect_tools", lambda context: {"claude-code": True, "codex": False})
+    monkeypatch.setattr("install.install.handle_native_dependencies", lambda *args, **kwargs: 0)
+
+    code = main(["--install", "detected", "--dry-run", "--project-dir", str(tmp_path / "project")])
 
     assert code == 0
     assert "Tools: claude-code" in capsys.readouterr().out
 
 
 def test_main_deps_only_does_not_prompt(monkeypatch):
-    monkeypatch.setattr("scripts.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
+    monkeypatch.setattr("install.install.prompt_for_tools", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected prompt")))
 
     code = main(["--deps-only", "--dry-run", "--skip-deps-check"])
 
@@ -472,7 +519,7 @@ def test_old_tool_arguments_are_rejected():
             [
                 sys.executable,
                 "-B",
-                "scripts/install.py",
+                "install/install.py",
                 old_arg,
                 "codex",
             ],
@@ -491,7 +538,7 @@ def test_install_and_uninstall_are_mutually_exclusive():
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "codex",
             "--uninstall",
@@ -511,7 +558,7 @@ def test_uninstall_rejects_dependency_install_flags():
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--uninstall",
             "codex",
             "--with-deps",
@@ -550,7 +597,7 @@ def test_detect_tools_does_not_treat_shared_agents_directory_as_every_agent(tmp_
 
 def test_shell_wrapper_help_runs():
     result = subprocess.run(
-        ["bash", "scripts/install.sh", "--help"],
+        ["bash", "install/install.sh", "--help"],
         cwd=Path(__file__).resolve().parents[1],
         text=True,
         capture_output=True,
@@ -563,9 +610,33 @@ def test_shell_wrapper_help_runs():
     assert "--tools" not in result.stdout
 
 
+def test_install_commands_are_not_in_runtime_scripts_directory():
+    root = Path(__file__).resolve().parents[1]
+
+    for old_path in [
+        "scripts/__init__.py",
+        "scripts/bootstrap.sh",
+        "scripts/bootstrap.ps1",
+        "scripts/install.sh",
+        "scripts/install.ps1",
+        "scripts/install.py",
+        "scripts/install_deps.py",
+    ]:
+        assert not (root / old_path).exists(), old_path
+    for new_path in [
+        "install/bootstrap.sh",
+        "install/bootstrap.ps1",
+        "install/install.sh",
+        "install/install.ps1",
+        "install/install.py",
+        "install/install_deps.py",
+    ]:
+        assert (root / new_path).exists(), new_path
+
+
 def test_bootstrap_help_runs():
     result = subprocess.run(
-        ["bash", "scripts/bootstrap.sh", "--help"],
+        ["bash", "install/bootstrap.sh", "--help"],
         cwd=Path(__file__).resolve().parents[1],
         text=True,
         capture_output=True,
@@ -574,21 +645,70 @@ def test_bootstrap_help_runs():
 
     assert result.returncode == 0
     assert "GIS_CONVERT_HOME" in result.stdout
+    assert "GIS_CONVERT_KEEP_CHECKOUT" in result.stdout
     assert "bootstrap.sh" in result.stdout
     assert "--install claude-code" in result.stdout
+    assert "--uninstall claude-code" in result.stdout
+    assert "--uninstall all" in result.stdout
     assert "--install codex" not in result.stdout
+
+
+def test_bootstrap_reconnects_install_stdin_to_tty_when_available():
+    text = (Path(__file__).resolve().parents[1] / "install" / "bootstrap.sh").read_text(encoding="utf-8")
+
+    assert "-r /dev/tty" in text
+    assert "-t 1" in text
+    assert "--no-interactive" in text
+    assert './install/install.sh "$@" < /dev/tty' in text
+
+
+def test_bootstrap_uses_temporary_checkout_and_cleans_it_up_by_default(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    source_repo = make_bootstrap_source_repo(tmp_path)
+    env = os.environ.copy()
+    env.pop("GIS_CONVERT_HOME", None)
+    env.pop("GIS_CONVERT_KEEP_CHECKOUT", None)
+    env["HOME"] = str(tmp_path / "home")
+    env["TMPDIR"] = str(tmp_path / "tmp")
+    env["GIS_CONVERT_REPO"] = str(source_repo)
+    Path(env["TMPDIR"]).mkdir()
+
+    result = subprocess.run(
+        [
+            "bash",
+            "install/bootstrap.sh",
+            "--install",
+            "codex",
+            "--dry-run",
+            "--skip-deps-check",
+            "--no-interactive",
+        ],
+        cwd=root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Cloning gis-convert into:" in result.stdout
+    assert "Cleaning up temporary checkout:" in result.stdout
+    match = re.search(r"Cleaning up temporary checkout: (.+)", result.stdout)
+    assert match is not None
+    assert not Path(match.group(1).strip()).exists()
 
 
 def test_bootstrap_clones_then_updates_existing_checkout(tmp_path):
     root = Path(__file__).resolve().parents[1]
+    source_repo = make_bootstrap_source_repo(tmp_path)
     env = os.environ.copy()
     env["HOME"] = str(tmp_path / "home")
     env["GIS_CONVERT_HOME"] = str(tmp_path / "checkout")
-    env["GIS_CONVERT_REPO"] = str(root)
+    env["GIS_CONVERT_REPO"] = str(source_repo)
 
     command = [
         "bash",
-        "scripts/bootstrap.sh",
+        "install/bootstrap.sh",
         "--install",
         "codex",
         "--dry-run",
@@ -606,17 +726,20 @@ def test_bootstrap_clones_then_updates_existing_checkout(tmp_path):
 
 
 def test_powershell_bootstrap_contains_clone_update_and_install_logic():
-    text = (Path(__file__).resolve().parents[1] / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[1] / "install" / "bootstrap.ps1").read_text(encoding="utf-8")
 
     assert "GIS_CONVERT_HOME" in text
+    assert "GIS_CONVERT_KEEP_CHECKOUT" in text
     assert "GIS_CONVERT_REPO" in text
     assert "git clone" in text
     assert "pull --ff-only" in text
+    assert "Cleaning up temporary checkout:" in text
+    assert "Remove-Item -Recurse -Force" in text
     assert "install.ps1" in text
 
 
 def test_powershell_wrapper_contains_install_parameters():
-    text = (Path(__file__).resolve().parents[1] / "scripts" / "install.ps1").read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[1] / "install" / "install.ps1").read_text(encoding="utf-8")
 
     assert "Install" in text
     assert "Uninstall" in text
@@ -708,7 +831,7 @@ def test_cli_dry_run_prints_dependency_status_by_default(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "codex",
             "--dry-run",
@@ -733,7 +856,7 @@ def test_cli_can_skip_dependency_check(tmp_path):
         [
             sys.executable,
             "-B",
-            "scripts/install.py",
+            "install/install.py",
             "--install",
             "codex",
             "--dry-run",
@@ -753,7 +876,7 @@ def test_cli_can_skip_dependency_check(tmp_path):
 
 def test_help_mentions_dependency_check_flags():
     result = subprocess.run(
-        [sys.executable, "-B", "scripts/install.py", "--help"],
+        [sys.executable, "-B", "install/install.py", "--help"],
         cwd=Path(__file__).resolve().parents[1],
         text=True,
         capture_output=True,
@@ -777,9 +900,9 @@ def test_handle_dependencies_runs_required_install_after_yes(monkeypatch, tmp_pa
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
-    monkeypatch.setattr("scripts.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
@@ -802,9 +925,9 @@ def test_handle_dependencies_skips_install_after_no(monkeypatch, tmp_path):
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
-    monkeypatch.setattr("scripts.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
@@ -826,8 +949,8 @@ def test_require_deps_fails_when_required_dependency_missing(monkeypatch, tmp_pa
         }
     }
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
 
     code = handle_native_dependencies(context, yes=False, require_deps=True, no_interactive=True)
 
@@ -847,9 +970,9 @@ def test_yes_skips_prompt_and_runs_dependency_install(monkeypatch, tmp_path):
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
-    monkeypatch.setattr("scripts.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
 
     code = handle_native_dependencies(context, yes=True, require_deps=False, no_interactive=True)
 
@@ -870,9 +993,9 @@ def test_only_missing_pdal_does_not_install_by_default(monkeypatch, tmp_path):
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
-    monkeypatch.setattr("scripts.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
@@ -895,9 +1018,9 @@ def test_only_missing_pdal_installs_optional_group_after_yes(monkeypatch, tmp_pa
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.print_dependency_install_plan", lambda dependency_group="all": None)
-    monkeypatch.setattr("scripts.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.print_dependency_install_plan", lambda dependency_group="all": None)
+    monkeypatch.setattr("install.install.run_dependency_install", lambda ctx, yes, dependency_group="all": calls.append((ctx, yes, dependency_group)) or 0)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
@@ -921,8 +1044,8 @@ def test_missing_pygeoconv_installs_after_yes(monkeypatch, tmp_path):
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.run_python_dependency_install", lambda ctx, yes: calls.append((ctx, yes)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.run_python_dependency_install", lambda ctx, yes: calls.append((ctx, yes)) or 0)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
 
@@ -946,8 +1069,8 @@ def test_missing_pygeoconv_skips_in_non_interactive_mode(monkeypatch, tmp_path):
     }
     calls = []
 
-    monkeypatch.setattr("scripts.install.inspect_environment", lambda _: report)
-    monkeypatch.setattr("scripts.install.run_python_dependency_install", lambda ctx, yes: calls.append((ctx, yes)) or 0)
+    monkeypatch.setattr("install.install.inspect_environment", lambda _: report)
+    monkeypatch.setattr("install.install.run_python_dependency_install", lambda ctx, yes: calls.append((ctx, yes)) or 0)
 
     code = handle_native_dependencies(context, yes=False, require_deps=False, no_interactive=True)
 

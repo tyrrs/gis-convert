@@ -1,6 +1,6 @@
 import platform
 
-from scripts.install_deps import build_install_plan, detect_platform
+from install.install_deps import build_install_plan, detect_platform
 
 
 def test_conda_plan_is_default_and_does_not_apply_commands():

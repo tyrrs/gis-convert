@@ -29,12 +29,12 @@ npx skills add tyrrs/gis-convert
 
 如果需要依赖检测和可选依赖安装，请使用本仓库安装器。安装器默认会检测依赖；缺少较大的原生 GIS 依赖时，它会先询问再安装。
 
-不指定 Agent 名称时，安装器会交互式列出当前检测到的 Agent 供多选。在 `curl | bash` 这类非交互环境中，会自动回退为安装检测到的 Agent。
+不指定 Agent 名称时，安装器会交互式列出当前检测到的 Agent 供多选。`curl | bash` 安装器会在可用时重新连接到你的终端；自动化环境中请显式传 `--install detected`、`--install all` 或具体 Agent。bootstrap 拉取的仓库是临时目录，安装器结束后会自动清理；只有设置 `GIS_CONVERT_HOME` 时才会保留。
 
 macOS / Linux / WSL / Git Bash：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash
 ```
 
 macOS / Linux 手动安装：
@@ -42,13 +42,13 @@ macOS / Linux 手动安装：
 ```bash
 git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.sh
+./install/install.sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/scripts/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.ps1 | iex
 ```
 
 Windows 手动安装：
@@ -56,18 +56,28 @@ Windows 手动安装：
 ```powershell
 git clone https://github.com/tyrrs/gis-convert.git
 cd gis-convert
-./scripts/install.ps1
+./install/install.ps1
 ```
 
 常用选项：
 
 ```bash
-./scripts/install.sh --install claude-code,codex,qwen-code
-./scripts/install.sh --install all
-./scripts/install.sh --install detected
-./scripts/install.sh --install claude-code --with-deps
-./scripts/install.sh --install claude-code --skip-deps-check
-./scripts/install.sh --uninstall claude-code
+./install/install.sh --install claude-code,codex,qwen-code
+./install/install.sh --install all
+./install/install.sh --install detected
+./install/install.sh --install claude-code --with-deps
+./install/install.sh --install claude-code --skip-deps-check
+./install/install.sh --uninstall claude-code
+./install/install.sh --uninstall all
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash -s -- --uninstall claude-code
+curl -fsSL https://raw.githubusercontent.com/tyrrs/gis-convert/main/install/bootstrap.sh | bash -s -- --uninstall all
+```
+
+PowerShell 选项：
+
+```powershell
+./install/install.ps1 -Uninstall claude-code
+./install/install.ps1 -Uninstall all
 ```
 
 ## 格式流程
