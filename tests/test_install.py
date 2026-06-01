@@ -14,6 +14,7 @@ from install.install import (
     confirm_dependency_install,
     confirm_optional_pdal_install,
     confirm_python_dependency_install,
+    copy_minimal_skill_package,
     detect_tools,
     handle_native_dependencies,
     main,
@@ -236,6 +237,21 @@ def test_actual_install_copies_codex_skill_to_temp_home(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert_minimal_skill_package(tmp_path / "home" / ".codex" / "skills" / "gis-convert")
+
+
+def test_copy_minimal_skill_package_replaces_existing_symlink(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    link_target = tmp_path / "old-target"
+    link_target.mkdir()
+    (link_target / "keep.txt").write_text("keep", encoding="utf-8")
+    destination = tmp_path / "gis-convert"
+    destination.symlink_to(link_target, target_is_directory=True)
+
+    copy_minimal_skill_package(repo_root, destination)
+
+    assert not destination.is_symlink()
+    assert_minimal_skill_package(destination)
+    assert (link_target / "keep.txt").exists()
 
 
 def test_actual_install_all_writes_minimal_packages_for_every_tool(tmp_path, monkeypatch):

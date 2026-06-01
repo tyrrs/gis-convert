@@ -173,7 +173,9 @@ class NativeDependencySummary:
 def copy_directory(source: Path, destination: Path) -> None:
     """Copy a directory, replacing any existing destination."""
 
-    if destination.exists():
+    if destination.is_symlink():
+        destination.unlink()
+    elif destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(
         source,
@@ -207,7 +209,9 @@ def copy_minimal_skill_package(repo_root: Path, destination: Path) -> None:
     source_skill = repo_root / "skills" / "gis-convert" / "SKILL.md"
     if not source_skill.exists():
         raise FileNotFoundError(f"Missing canonical skill entry: {source_skill}")
-    if destination.exists():
+    if destination.is_symlink():
+        destination.unlink()
+    elif destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
     copy_file(source_skill, destination / "SKILL.md")
@@ -609,6 +613,9 @@ def apply_uninstall_operation(operation: InstallOperation, dry_run: bool) -> int
     if dry_run:
         return 0
     if operation.kind in {"directory", "skill-package"}:
+        if operation.destination.is_symlink():
+            operation.destination.unlink()
+            return 0
         if not operation.destination.is_dir():
             print(f"install.py: refusing to remove non-directory target: {operation.destination}", file=sys.stderr)
             return 1
