@@ -17,12 +17,13 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.check_env import inspect_environment
-from install.install_deps import build_install_plan, detect_platform, find_package_managers
+from install.install_deps import build_install_plan, conda_env_exists, detect_platform, find_package_managers
 
 
 REQUIRED_NATIVE_TOOLS = ["gdalinfo", "ogrinfo", "ogr2ogr", "proj"]
 OPTIONAL_NATIVE_TOOLS = ["pdal"]
 PYTHON_PACKAGES = {"pygeoconv": "pygeoconv>=1.0.1,<2"}
+CONDA_ENV_NAME = "gis-convert"
 
 
 @dataclass(frozen=True)
@@ -639,10 +640,38 @@ def run_dependency_install(context: InstallContext, yes: bool, dependency_group:
     return subprocess.run(command, check=False).returncode
 
 
+def python_dependency_conda_path() -> str | None:
+    """Return a conda or mamba executable when the gis-convert environment exists."""
+
+    managers = find_package_managers(["mamba", "conda"])
+    conda = managers.get("mamba") or managers.get("conda")
+    if conda and conda_env_exists(CONDA_ENV_NAME, conda):
+        return conda
+    return None
+
+
+def build_python_dependency_install_command() -> list[str]:
+    """Build the command used to install Python runtime packages."""
+
+    conda = python_dependency_conda_path()
+    if conda:
+        return [conda, "run", "-n", CONDA_ENV_NAME, "python", "-m", "pip", "install", *PYTHON_PACKAGES.values()]
+    return [sys.executable, "-m", "pip", "install", *PYTHON_PACKAGES.values()]
+
+
+def python_dependency_verify_command() -> str:
+    """Return the recommended command for checking installed Python packages."""
+
+    conda = python_dependency_conda_path()
+    if conda:
+        return shlex.join([conda, "run", "-n", CONDA_ENV_NAME, "python", "scripts/check_env.py"])
+    return shlex.join([sys.executable, "scripts/check_env.py"])
+
+
 def print_python_dependency_install_plan() -> None:
     """Print the recommended Python package installation command."""
 
-    command = [sys.executable, "-m", "pip", "install", *PYTHON_PACKAGES.values()]
+    command = build_python_dependency_install_command()
     print("Recommended Python package install plan:")
     print("  " + shlex.join(command))
 
@@ -650,7 +679,7 @@ def print_python_dependency_install_plan() -> None:
 def run_python_dependency_install(context: InstallContext, yes: bool) -> int:
     """Install Python package dependencies required by runtime conversions."""
 
-    command = [sys.executable, "-m", "pip", "install", *PYTHON_PACKAGES.values()]
+    command = build_python_dependency_install_command()
     prefix = "DRY-RUN" if context.dry_run else "INSTALL"
     print(f"[{prefix}] python packages: {shlex.join(command)}")
     if context.dry_run:
@@ -658,6 +687,15 @@ def run_python_dependency_install(context: InstallContext, yes: bool) -> int:
     if not yes:
         print("install.py: refusing to install Python packages without explicit confirmation.", file=sys.stderr)
         return 1
+    if command[0] == sys.executable:
+        pip_check = subprocess.run([sys.executable, "-m", "pip", "--version"], text=True, capture_output=True, check=False)
+        if pip_check.returncode != 0:
+            print(
+                "install.py: current Python does not provide pip. Install pip for this Python, "
+                "or install dependencies with conda so pygeoconv can be installed into the gis-convert environment.",
+                file=sys.stderr,
+            )
+            return pip_check.returncode
     return subprocess.run(command, check=False).returncode
 
 
@@ -695,7 +733,7 @@ def handle_native_dependencies(
         if python_code != 0:
             return python_code
         if not context.dry_run:
-            print("Native dependency installer finished. Verify with: python scripts/check_env.py")
+            print(f"Native dependency installer finished. Verify with: {python_dependency_verify_command()}")
         return 0
 
     if summary.has_required_missing:
@@ -715,7 +753,7 @@ def handle_native_dependencies(
             if install_code != 0:
                 return install_code
             if not context.dry_run:
-                print("Native dependency installer finished. Verify with: python scripts/check_env.py")
+                print(f"Native dependency installer finished. Verify with: {python_dependency_verify_command()}")
         elif require_deps:
             print("Required native GIS dependencies are missing. Re-run with --yes, --with-deps, or install them manually.", file=sys.stderr)
             return 1
@@ -744,7 +782,7 @@ def handle_native_dependencies(
             if install_code != 0:
                 return install_code
             if not context.dry_run:
-                print("PDAL installer finished. Verify with: python scripts/check_env.py")
+                print(f"PDAL installer finished. Verify with: {python_dependency_verify_command()}")
         else:
             print("Agent integration can still be installed. Point-cloud conversion is limited until PDAL is installed.")
     if summary.python_missing:
@@ -764,7 +802,7 @@ def handle_native_dependencies(
             if python_code != 0:
                 return python_code
             if not context.dry_run:
-                print("Python package installer finished. Verify with: python scripts/check_env.py")
+                print(f"Python package installer finished. Verify with: {python_dependency_verify_command()}")
         elif require_deps:
             print("Python package dependencies are missing. Re-run with --yes or install them manually.", file=sys.stderr)
             return 1

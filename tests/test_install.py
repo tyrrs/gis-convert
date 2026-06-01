@@ -9,6 +9,7 @@ from install.install import (
     AGENT_TARGETS,
     InstallContext,
     SUPPORTED_TOOLS,
+    build_python_dependency_install_command,
     build_tool_operations,
     confirm_dependency_install,
     confirm_optional_pdal_install,
@@ -19,6 +20,9 @@ from install.install import (
     prompt_for_tools,
     summarize_native_dependencies,
     parse_tool_selection,
+    python_dependency_verify_command,
+    print_python_dependency_install_plan,
+    run_python_dependency_install,
 )
 
 
@@ -821,6 +825,65 @@ def test_confirm_python_dependency_install_accepts_only_yes():
     assert confirm_python_dependency_install(lambda _: "y") is True
     assert confirm_python_dependency_install(lambda _: "yes") is True
     assert confirm_python_dependency_install(lambda _: "") is False
+
+
+def test_python_dependency_install_prefers_existing_conda_env(monkeypatch):
+    monkeypatch.setattr("install.install.find_package_managers", lambda _: {"conda": "/opt/anaconda3/bin/conda"})
+    monkeypatch.setattr("install.install.conda_env_exists", lambda env_name, conda_path=None: True)
+
+    command = build_python_dependency_install_command()
+
+    assert command == [
+        "/opt/anaconda3/bin/conda",
+        "run",
+        "-n",
+        "gis-convert",
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "pygeoconv>=1.0.1,<2",
+    ]
+
+
+def test_python_dependency_install_falls_back_to_current_python(monkeypatch):
+    monkeypatch.setattr("install.install.find_package_managers", lambda _: {})
+
+    command = build_python_dependency_install_command()
+
+    assert command == [sys.executable, "-m", "pip", "install", "pygeoconv>=1.0.1,<2"]
+
+
+def test_print_and_run_python_dependency_install_use_same_command(monkeypatch, tmp_path, capsys):
+    context = make_context(tmp_path, dry_run=True)
+    command = [
+        "/opt/anaconda3/bin/conda",
+        "run",
+        "-n",
+        "gis-convert",
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "pygeoconv>=1.0.1,<2",
+    ]
+    monkeypatch.setattr("install.install.build_python_dependency_install_command", lambda: command)
+
+    print_python_dependency_install_plan()
+    plan_output = capsys.readouterr().out
+    result = run_python_dependency_install(context, yes=True)
+    run_output = capsys.readouterr().out
+
+    assert result == 0
+    assert "conda run -n gis-convert python -m pip install 'pygeoconv>=1.0.1,<2'" in plan_output
+    assert "conda run -n gis-convert python -m pip install 'pygeoconv>=1.0.1,<2'" in run_output
+
+
+def test_python_dependency_verify_command_uses_conda_when_available(monkeypatch):
+    monkeypatch.setattr("install.install.find_package_managers", lambda _: {"conda": "/opt/anaconda3/bin/conda"})
+    monkeypatch.setattr("install.install.conda_env_exists", lambda env_name, conda_path=None: True)
+
+    assert python_dependency_verify_command() == "/opt/anaconda3/bin/conda run -n gis-convert python scripts/check_env.py"
 
 
 def test_cli_dry_run_prints_dependency_status_by_default(tmp_path):
